@@ -5,6 +5,7 @@ import Navigation, { PageView } from "@/components/Navigation";
 import StreakDashboard from "@/components/StreakDashboard";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import HistoryDashboard from "@/components/HistoryDashboard";
+import LeaderboardDashboard from "@/components/LeaderboardDashboard";
 import UserProfile from "@/components/UserProfile";
 import Login from "@/app/login/page";
 import EmergencyModal from "@/components/EmergencyModal";
@@ -52,6 +53,7 @@ export default function Home() {
           addUrge={addUrge} 
           moods={moods} 
           addMood={addMood} 
+          userCreatedAt={user.created_at}
         />
       )}
       {activePage === "stats" && <AnalyticsDashboard relapses={relapses} urges={urges} moods={moods} />}
@@ -66,6 +68,7 @@ export default function Home() {
           loading={relapsesLoading}
         />
       )}
+      {activePage === "leaderboard" && <LeaderboardDashboard />}
       {activePage === "profile" && <UserProfile />}
 
       {/* Floating Panic Button */}

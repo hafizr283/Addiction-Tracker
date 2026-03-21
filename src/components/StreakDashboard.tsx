@@ -45,9 +45,10 @@ interface StreakDashboardProps {
   addUrge: (intensity: number, trigger: string) => Promise<void>;
   moods: Mood[];
   addMood: (mood: string, note: string) => Promise<void>;
+  userCreatedAt?: string;
 }
 
-export default function StreakDashboard({ relapses, addUrge, moods, addMood }: StreakDashboardProps) {
+export default function StreakDashboard({ relapses, addUrge, moods, addMood, userCreatedAt }: StreakDashboardProps) {
   const [time, setTime] = useState({ days: 0, hrs: 0, mins: 0, secs: 0 });
   const [quoteIdx, setQuoteIdx] = useState(0);
   
@@ -64,9 +65,11 @@ export default function StreakDashboard({ relapses, addUrge, moods, addMood }: S
     const uInterval = setInterval(() => {
       let last: Date;
       if (relapses.length === 0) {
-        // If no data, just show 0
-        setTime({ days: 0, hrs: 0, mins: 0, secs: 0 });
-        return;
+        if (!userCreatedAt) {
+          setTime({ days: 0, hrs: 0, mins: 0, secs: 0 });
+          return;
+        }
+        last = new Date(userCreatedAt);
       } else {
         last = new Date(relapses[0].date);
       }
@@ -98,7 +101,7 @@ export default function StreakDashboard({ relapses, addUrge, moods, addMood }: S
   else if (days >= 7) dcStyle = { background: 'linear-gradient(135deg,#dcfce7,#4ade80,#22c55e,#16a34a)', WebkitBackgroundClip: 'text', backgroundClip: 'text'};
   else dcStyle = { background: 'linear-gradient(135deg,#f0f0ff,#c4b5fd,#8b5cf6,#6d28d9)', WebkitBackgroundClip: 'text', backgroundClip: 'text'};
 
-  const lastRelapseDate = relapses.length > 0 ? new Date(relapses[0].date) : null;
+  const lastRelapseDate = relapses.length > 0 ? new Date(relapses[0].date) : (userCreatedAt ? new Date(userCreatedAt) : null);
   const diffFloat = lastRelapseDate ? Math.max(0, new Date().getTime() - lastRelapseDate.getTime()) / 86400000 : 0;
   
   let curM = { days: 0, label: 'Start', emoji: '🌱' }, nxtM = MILESTONES[0];

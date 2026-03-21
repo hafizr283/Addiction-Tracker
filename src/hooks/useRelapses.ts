@@ -57,6 +57,15 @@ export function useRelapses() {
       if (error) throw error;
       if (data) {
         setRelapses((prev) => [data[0], ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
+        
+        // Trigger email notification asynchronously
+        if (user.email) {
+          fetch('/api/notify/relapse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email: user.email, type })
+          }).catch(console.error);
+        }
       }
     } catch (err: any) {
       console.error('Error adding relapse:', err);

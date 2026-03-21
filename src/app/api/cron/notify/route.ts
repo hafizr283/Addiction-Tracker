@@ -10,12 +10,15 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-function getCurrentStreak(relapseDates: string[]): number {
-  if (relapseDates.length === 0) return 0;
+function getCurrentStreak(relapseDates: string[], userCreatedAt: string): number {
+  if (relapseDates.length === 0) {
+    const start = new Date(userCreatedAt);
+    const diffMs = new Date().getTime() - start.getTime();
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  }
   // relapseDates should be sorted desc
   const lastRelapse = new Date(relapseDates[0]);
-  const now = new Date();
-  const diffMs = now.getTime() - lastRelapse.getTime();
+  const diffMs = new Date().getTime() - lastRelapse.getTime();
   return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
@@ -61,7 +64,7 @@ export async function GET(request: Request) {
       }
 
       const dates = (relapses || []).map((r: { date: string }) => r.date);
-      const currentStreak = getCurrentStreak(dates);
+      const currentStreak = getCurrentStreak(dates, user.created_at);
       const nextBadge = getNextBadge(currentStreak);
 
       if (!nextBadge) continue; // All badges unlocked, skip
@@ -86,7 +89,8 @@ export async function GET(request: Request) {
         nextBadge.name,
         nextBadge.icon,
         daysRemaining,
-        currentStreak
+        currentStreak,
+        nextBadge.daysRequired
       );
 
       const { error: emailError } = await resend.emails.send({
