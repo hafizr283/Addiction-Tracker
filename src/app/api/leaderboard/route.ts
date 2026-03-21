@@ -6,50 +6,53 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+// Generate an anonymous name from user ID
+function generateAnonName(userId: string): string {
+  const adjectives = ['Silent', 'Brave', 'Iron', 'Shadow', 'Steady', 'Calm', 'Bold', 'Swift', 'Noble', 'Steel'];
+  const nouns = ['Warrior', 'Phoenix', 'Titan', 'Eagle', 'Wolf', 'Lion', 'Hawk', 'Storm', 'Knight', 'Monk'];
+  // Use last few chars of UUID as a seed for consistent name
+  const hash = userId.replace(/-/g, '');
+  const adjIdx = parseInt(hash.substring(0, 4), 16) % adjectives.length;
+  const nounIdx = parseInt(hash.substring(4, 8), 16) % nouns.length;
+  const tag = hash.substring(hash.length - 3).toUpperCase();
+  return `${adjectives[adjIdx]}${nouns[nounIdx]}_${tag}`;
+}
+
 export async function GET() {
   try {
-    // 1. Get all users who opted-in to the leaderboard
-    const { data: profiles, error: profilesError } = await supabaseAdmin
-      .from('user_profiles')
-      .select('id, display_name, created_at')
-      .eq('show_on_leaderboard', true);
-
-    if (profilesError) throw profilesError;
-    if (!profiles || profiles.length === 0) {
+    // 1. Get ALL users from auth
+    const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
+    if (usersError) throw usersError;
+    if (!users || users.length === 0) {
       return NextResponse.json({ leaderboard: [] });
     }
 
-    // 2. For each user, calculate current streak and best streak
+    // 2. Get all existing profiles (for custom display names)
+    const { data: profiles } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, display_name');
+
+    const profileMap = new Map((profiles || []).map(p => [p.id, p.display_name]));
+
+    // 3. For each user, calculate streaks
     const leaderboard = [];
 
-    for (const profile of profiles) {
-      const { data: relapses, error: relapsesError } = await supabaseAdmin
+    for (const authUser of users) {
+      const { data: relapses } = await supabaseAdmin
         .from('relapses')
         .select('date')
-        .eq('user_id', profile.id)
+        .eq('user_id', authUser.id)
         .order('date', { ascending: false });
-
-      if (relapsesError) continue;
-
-      // Get user creation date for streak baseline
-      const { data: { users }, error: usersError } = await supabaseAdmin.auth.admin.listUsers();
-      if (usersError) continue;
-      const authUser = users.find(u => u.id === profile.id);
-      if (!authUser) continue;
 
       const now = Date.now();
       let currentStreak = 0;
       let bestStreak = 0;
 
       if (!relapses || relapses.length === 0) {
-        // No relapses ever — streak since account creation
         currentStreak = Math.floor((now - new Date(authUser.created_at).getTime()) / (1000 * 60 * 60 * 24));
         bestStreak = currentStreak;
       } else {
-        // Current streak = time since most recent relapse
         currentStreak = Math.floor((now - new Date(relapses[0].date).getTime()) / (1000 * 60 * 60 * 24));
-
-        // Best streak = max gap between consecutive relapses (or from creation to first relapse)
         let maxGap = currentStreak;
         for (let i = 0; i < relapses.length - 1; i++) {
           const gap = Math.floor(
@@ -57,29 +60,30 @@ export async function GET() {
           );
           if (gap > maxGap) maxGap = gap;
         }
-        // Gap from account creation to earliest relapse
-        const firstRelapseGap = Math.floor(
+        const firstGap = Math.floor(
           (new Date(relapses[relapses.length - 1].date).getTime() - new Date(authUser.created_at).getTime()) / (1000 * 60 * 60 * 24)
         );
-        if (firstRelapseGap > maxGap) maxGap = firstRelapseGap;
-
+        if (firstGap > maxGap) maxGap = firstGap;
         bestStreak = maxGap;
       }
 
+      // Use custom name if set, otherwise auto-generate
+      const displayName = profileMap.get(authUser.id) || generateAnonName(authUser.id);
       const joinedDaysAgo = Math.floor((now - new Date(authUser.created_at).getTime()) / (1000 * 60 * 60 * 24));
 
       leaderboard.push({
-        displayName: profile.display_name,
+        userId: authUser.id,
+        displayName,
         currentStreak,
         bestStreak,
         joinedDaysAgo,
+        isCustomName: profileMap.has(authUser.id),
       });
     }
 
     // Sort by current streak descending
     leaderboard.sort((a, b) => b.currentStreak - a.currentStreak);
 
-    // Add rank
     const ranked = leaderboard.map((entry, index) => ({
       rank: index + 1,
       ...entry,

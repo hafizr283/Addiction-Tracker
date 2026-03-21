@@ -6,15 +6,16 @@ import { createClient } from "@/utils/supabase/client";
 
 interface LeaderboardEntry {
   rank: number;
+  userId: string;
   displayName: string;
   currentStreak: number;
   bestStreak: number;
   joinedDaysAgo: number;
+  isCustomName: boolean;
 }
 
 interface UserProfile {
   display_name: string;
-  show_on_leaderboard: boolean;
 }
 
 export default function LeaderboardDashboard() {
@@ -25,9 +26,9 @@ export default function LeaderboardDashboard() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [displayName, setDisplayName] = useState("");
-  const [showOnLeaderboard, setShowOnLeaderboard] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState({ text: "", type: "" });
+  const [editingName, setEditingName] = useState(false);
 
   const fetchLeaderboard = useCallback(async () => {
     try {
@@ -44,7 +45,6 @@ export default function LeaderboardDashboard() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-
       const res = await fetch("/api/profile", {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
@@ -52,7 +52,6 @@ export default function LeaderboardDashboard() {
       if (data.profile) {
         setProfile(data.profile);
         setDisplayName(data.profile.display_name);
-        setShowOnLeaderboard(data.profile.show_on_leaderboard);
       }
     } catch (err) {
       console.error("Error fetching profile:", err);
@@ -68,11 +67,11 @@ export default function LeaderboardDashboard() {
     load();
   }, [fetchLeaderboard, fetchProfile]);
 
-  const handleSaveProfile = async (e: React.FormEvent) => {
+  const handleSaveName = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
     if (displayName.trim().length < 2) {
-      setMsg({ text: "Display name must be at least 2 characters.", type: "error" });
+      setMsg({ text: "Name must be at least 2 characters.", type: "error" });
       return;
     }
 
@@ -82,22 +81,21 @@ export default function LeaderboardDashboard() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-
       const res = await fetch("/api/profile", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ displayName: displayName.trim(), showOnLeaderboard }),
+        body: JSON.stringify({ displayName: displayName.trim(), showOnLeaderboard: true }),
       });
-
       const data = await res.json();
       if (data.error) {
         setMsg({ text: data.error, type: "error" });
       } else {
         setProfile(data.profile);
-        setMsg({ text: showOnLeaderboard ? "You're now on the leaderboard! 🎉" : "Profile saved.", type: "success" });
+        setMsg({ text: "Name updated! 🎉", type: "success" });
+        setEditingName(false);
         await fetchLeaderboard();
       }
     } catch (err: any) {
@@ -107,11 +105,14 @@ export default function LeaderboardDashboard() {
     }
   };
 
+  // Find current user's entry
+  const myEntry = entries.find(e => e.userId === user?.id);
+
   const getRankStyle = (rank: number) => {
-    if (rank === 1) return { emoji: "🥇", gradient: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", color: "#fbbf24" };
-    if (rank === 2) return { emoji: "🥈", gradient: "linear-gradient(135deg, #cbd5e1, #94a3b8, #64748b)", color: "#cbd5e1" };
-    if (rank === 3) return { emoji: "🥉", gradient: "linear-gradient(135deg, #f97316, #ea580c, #c2410c)", color: "#f97316" };
-    return { emoji: `#${rank}`, gradient: "none", color: "var(--text-muted)" };
+    if (rank === 1) return { emoji: "🥇", color: "#fbbf24" };
+    if (rank === 2) return { emoji: "🥈", color: "#cbd5e1" };
+    if (rank === 3) return { emoji: "🥉", color: "#f97316" };
+    return { emoji: `#${rank}`, color: "var(--text-muted)" };
   };
 
   const fmtDays = (d: number) => {
@@ -135,64 +136,78 @@ export default function LeaderboardDashboard() {
     <div className="leaderboard-page page active">
       <div className="section-title">🏆 Leaderboard</div>
 
-      {/* Opt-in Card */}
-      <div className="lb-optin-card">
-        <h3 className="lb-optin-title">
-          {profile?.show_on_leaderboard ? "⚙️ Your Leaderboard Settings" : "🚀 Join the Leaderboard"}
-        </h3>
-        {!profile?.show_on_leaderboard && (
-          <p className="lb-optin-desc">
-            Choose a display name and compete with others. Your email stays private.
-          </p>
-        )}
-        <form onSubmit={handleSaveProfile}>
-          {msg.text && (
-            <div
-              className="success-msg"
-              style={{
-                background: msg.type === "error" ? "rgba(239, 68, 68, 0.1)" : "",
-                color: msg.type === "error" ? "var(--red)" : "",
-                borderColor: msg.type === "error" ? "rgba(239, 68, 68, 0.2)" : "",
-                marginBottom: "16px",
-              }}
-            >
-              {msg.text}
+      {/* My Rank Card */}
+      {myEntry && (
+        <div className="lb-my-rank-card">
+          <div className="lb-my-rank-header">
+            <div>
+              <div className="lb-my-rank-label">YOUR RANK</div>
+              <div className="lb-my-rank-number" style={{ color: getRankStyle(myEntry.rank).color }}>
+                {getRankStyle(myEntry.rank).emoji}
+              </div>
             </div>
-          )}
-          <div className="lb-optin-fields">
-            <div className="form-group" style={{ marginBottom: 0, flex: 1 }}>
-              <label>Display Name</label>
-              <input
-                type="text"
-                value={displayName}
-                onChange={(e) => setDisplayName(e.target.value)}
-                placeholder="Your warrior name"
-                maxLength={20}
-                required
-              />
+            <div style={{ textAlign: "center" }}>
+              <div className="lb-my-rank-label">CURRENT STREAK</div>
+              <div className="lb-my-rank-streak">{fmtDays(myEntry.currentStreak)}</div>
             </div>
-            <div className="lb-toggle-group">
-              <label>Show on Leaderboard</label>
-              <button
-                type="button"
-                className={`lb-toggle ${showOnLeaderboard ? "active" : ""}`}
-                onClick={() => setShowOnLeaderboard(!showOnLeaderboard)}
-              >
-                <span className="lb-toggle-knob" />
-              </button>
+            <div style={{ textAlign: "right" }}>
+              <div className="lb-my-rank-label">BEST STREAK</div>
+              <div className="lb-my-rank-best">{fmtDays(myEntry.bestStreak)}</div>
             </div>
           </div>
-          <button type="submit" disabled={saving} className="btn-save" style={{ marginTop: "16px", width: "100%" }}>
-            {saving ? "Saving..." : profile ? "Update Profile" : "Join Leaderboard"}
-          </button>
-        </form>
-      </div>
+          <div className="lb-my-name-row">
+            <span style={{ color: "var(--text-secondary)", fontSize: "13px" }}>
+              Showing as: <strong style={{ color: "var(--text-primary)" }}>{myEntry.displayName}</strong>
+            </span>
+            <button
+              className="lb-edit-name-btn"
+              onClick={() => setEditingName(!editingName)}
+            >
+              {editingName ? "Cancel" : "✏️ Change Name"}
+            </button>
+          </div>
+          {editingName && (
+            <form onSubmit={handleSaveName} className="lb-edit-form">
+              {msg.text && (
+                <div
+                  className="success-msg"
+                  style={{
+                    background: msg.type === "error" ? "rgba(239,68,68,0.1)" : "",
+                    color: msg.type === "error" ? "var(--red)" : "",
+                    borderColor: msg.type === "error" ? "rgba(239,68,68,0.2)" : "",
+                    marginBottom: "12px",
+                  }}
+                >
+                  {msg.text}
+                </div>
+              )}
+              <div style={{ display: "flex", gap: "10px" }}>
+                <input
+                  type="text"
+                  value={displayName}
+                  onChange={(e) => setDisplayName(e.target.value)}
+                  placeholder="Your warrior name"
+                  maxLength={20}
+                  style={{
+                    flex: 1, padding: "10px 14px", borderRadius: "var(--radius-sm)",
+                    border: "1px solid var(--border)", background: "rgba(255,255,255,0.04)",
+                    color: "var(--text-primary)", fontFamily: "inherit", fontSize: "14px", outline: "none",
+                  }}
+                />
+                <button type="submit" disabled={saving} className="btn-save" style={{ padding: "10px 20px" }}>
+                  {saving ? "..." : "Save"}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
+      )}
 
-      {/* Leaderboard Table */}
+      {/* Leaderboard */}
       {entries.length === 0 ? (
         <div className="empty-state" style={{ marginTop: "20px" }}>
           <div className="emoji">🏜️</div>
-          <p>No one has joined the leaderboard yet. Be the first!</p>
+          <p>No warriors yet. You will be the first!</p>
         </div>
       ) : (
         <>
@@ -201,14 +216,18 @@ export default function LeaderboardDashboard() {
             <div className="lb-podium">
               {[entries[1], entries[0], entries[2]].map((entry) => {
                 const rs = getRankStyle(entry.rank);
+                const isMe = entry.userId === user?.id;
                 return (
                   <div
                     key={entry.rank}
-                    className={`lb-podium-card ${entry.rank === 1 ? "first" : entry.rank === 2 ? "second" : "third"}`}
+                    className={`lb-podium-card ${entry.rank === 1 ? "first" : entry.rank === 2 ? "second" : "third"} ${isMe ? "is-me" : ""}`}
                     style={{ "--rank-color": rs.color } as React.CSSProperties}
                   >
                     <div className="lb-podium-emoji">{rs.emoji}</div>
-                    <div className="lb-podium-name">{entry.displayName}</div>
+                    <div className="lb-podium-name">
+                      {entry.displayName}
+                      {isMe && <span className="lb-you-badge" style={{ marginLeft: "6px" }}>YOU</span>}
+                    </div>
                     <div className="lb-podium-streak">{fmtDays(entry.currentStreak)}</div>
                     <div className="lb-podium-label">Current Streak</div>
                     <div className="lb-podium-best">Best: {fmtDays(entry.bestStreak)}</div>
@@ -218,20 +237,18 @@ export default function LeaderboardDashboard() {
             </div>
           )}
 
-          {/* Remaining Entries */}
+          {/* Remaining List */}
           <div className="lb-list">
             {entries.slice(entries.length >= 3 ? 3 : 0).map((entry) => {
               const rs = getRankStyle(entry.rank);
-              const isCurrentUser = profile?.display_name === entry.displayName && profile?.show_on_leaderboard;
+              const isMe = entry.userId === user?.id;
               return (
-                <div key={entry.rank} className={`lb-row ${isCurrentUser ? "is-me" : ""}`}>
-                  <div className="lb-rank" style={{ color: rs.color }}>
-                    {rs.emoji}
-                  </div>
+                <div key={entry.rank} className={`lb-row ${isMe ? "is-me" : ""}`}>
+                  <div className="lb-rank" style={{ color: rs.color }}>{rs.emoji}</div>
                   <div className="lb-info">
                     <div className="lb-name">
                       {entry.displayName}
-                      {isCurrentUser && <span className="lb-you-badge">YOU</span>}
+                      {isMe && <span className="lb-you-badge">YOU</span>}
                     </div>
                     <div className="lb-meta">
                       Best: {fmtDays(entry.bestStreak)} · Joined {entry.joinedDaysAgo}d ago

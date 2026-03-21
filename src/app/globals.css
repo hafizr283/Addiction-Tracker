@@ -657,6 +657,33 @@ body {
 .lb-meta { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 .lb-streak-value { font-size: 22px; font-weight: 900; color: var(--green); flex-shrink: 0; }
 
+/* My Rank Card */
+.lb-my-rank-card {
+    background: linear-gradient(145deg, rgba(139,92,246,0.06), rgba(12,12,26,0.9));
+    border: 1px solid rgba(139, 92, 246, 0.15);
+    border-radius: var(--radius-lg); padding: 24px;
+    margin-bottom: 24px; box-shadow: 0 0 30px rgba(139,92,246,0.05);
+}
+.lb-my-rank-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+.lb-my-rank-label { font-size: 9px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 2px; margin-bottom: 4px; }
+.lb-my-rank-number { font-size: 28px; font-weight: 900; }
+.lb-my-rank-streak { font-size: 28px; font-weight: 900; color: var(--green); }
+.lb-my-rank-best { font-size: 20px; font-weight: 700; color: var(--gold); }
+.lb-my-name-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.04);
+}
+.lb-edit-name-btn {
+    background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+    border-radius: var(--radius-sm); padding: 6px 14px;
+    color: var(--accent-light); font-family: inherit; font-size: 12px;
+    font-weight: 600; cursor: pointer; transition: all var(--transition);
+}
+.lb-edit-name-btn:hover { background: rgba(139,92,246,0.1); }
+.lb-edit-form { margin-top: 14px; }
+.lb-podium-card.is-me { box-shadow: 0 0 24px rgba(139, 92, 246, 0.12); border-color: rgba(139, 92, 246, 0.2); }
+
+
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar { width: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
