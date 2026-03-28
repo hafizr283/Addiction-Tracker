@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { resend } from '@/utils/resend';
 import { BADGES } from '@/utils/badges';
-import { getBadgeNotificationEmail } from '@/utils/email-templates';
+import { getBadgeNotificationEmail, getDailyAiAssessmentEmail } from '@/utils/email-templates';
+import { analyzeData } from '@/utils/analysis';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+
+// Initialize the Gemini API client
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || '');
 
 // Use the service role key for server-side admin access
 const supabaseAdmin = createClient(
@@ -54,7 +59,7 @@ export async function GET(request: Request) {
       // 2. Get this user's relapses (sorted desc by date)
       const { data: relapses, error: relapsesError } = await supabaseAdmin
         .from('relapses')
-        .select('date')
+        .select('id, user_id, type, date, notes, created_at')
         .eq('user_id', user.id)
         .order('date', { ascending: false });
 
@@ -63,18 +68,46 @@ export async function GET(request: Request) {
         continue;
       }
 
-      const dates = (relapses || []).map((r: { date: string }) => r.date);
-      const currentStreak = getCurrentStreak(dates, user.created_at);
+      const stats = analyzeData(relapses || [], [], [], user.created_at);
+      const currentStreak = Math.floor(stats.currentDays);
       const nextBadge = getNextBadge(currentStreak);
 
+      // -- 3. AI DAILY EMAIL LOGIC --
+      try {
+        if (process.env.GEMINI_API_KEY) {
+          const model = genAI.getGenerativeModel({
+            model: 'gemini-2.5-flash',
+            systemInstruction: `You are a savage, ruthless accountability partner for an addiction recovery tracker.
+You are writing a daily report email to the user. You have ZERO mercy. Analyze their stats and give them a short, brutal reality check.
+Stats: Streak: ${stats.currentDays.toFixed(1)}d, Best: ${stats.bestDays.toFixed(1)}d, Risk: ${stats.riskLevel}, Prod: ${stats.productivityScore.toFixed(0)}%, Conf: ${stats.confidenceScore.toFixed(0)}%, Relapses Today: ${stats.relapsesToday}.
+Keep it to 2-3 short, punching paragraphs. Use HTML tags like <b>, <i>, <br> for formatting, but no Markdown.`
+          });
+
+          const result = await model.generateContent("Write my daily savage assessment.");
+          const aiText = result.response.text();
+
+          const aiHtml = getDailyAiAssessmentEmail(stats, aiText);
+
+          await resend.emails.send({
+            from: 'Savage AI <onboarding@resend.dev>',
+            to: user.email,
+            subject: `🔥 Daily Assessment: ${stats.riskLevel} Risk`,
+            html: aiHtml,
+          });
+        }
+      } catch (aiError) {
+        console.error('Error generating AI email for', user.email, aiError);
+      }
+
+      // -- 4. BADGE NOTIFICATION LOGIC --
       if (!nextBadge) continue; // All badges unlocked, skip
 
       const daysRemaining = nextBadge.daysRequired - currentStreak;
 
-      // 3. Only notify if 1-2 days away from next badge
+      // 5. Only notify if 1-2 days away from next badge
       if (daysRemaining > 2 || daysRemaining <= 0) continue;
 
-      // 4. Check if we already sent this notification
+      // 6. Check if we already sent this badge notification
       const { data: existing } = await supabaseAdmin
         .from('sent_notifications')
         .select('id')
@@ -84,7 +117,7 @@ export async function GET(request: Request) {
 
       if (existing) continue; // Already notified
 
-      // 5. Send the email
+      // 7. Send the badge email
       const html = getBadgeNotificationEmail(
         nextBadge.name,
         nextBadge.icon,
@@ -105,7 +138,7 @@ export async function GET(request: Request) {
         continue;
       }
 
-      // 6. Record the notification so we don't send it again
+      // 8. Record the notification so we don't send it again
       await supabaseAdmin.from('sent_notifications').insert({
         user_id: user.id,
         badge_id: nextBadge.id,

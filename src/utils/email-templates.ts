@@ -334,3 +334,106 @@ export function getHourlyFollowupEmail(hours: number): string {
 </html>
   `.trim();
 }
+
+export function getDailyAiAssessmentEmail(
+  stats: {
+    currentDays: number;
+    riskLevel: string;
+    riskIcon: string;
+    productivityScore: number;
+    confidenceScore: number;
+  },
+  aiResponseHtml: string
+): string {
+  const prodColor = stats.productivityScore >= 70 ? "#22c55e" : stats.productivityScore >= 30 ? "#eab308" : "#ef4444";
+  const confColor = stats.confidenceScore >= 100 ? "#22c55e" : stats.confidenceScore >= 50 ? "#eab308" : "#ef4444";
+  
+  const isDanger = stats.riskLevel === "High Risk" || stats.riskLevel === "Risk";
+  const riskColor = isDanger ? "#ef4444" : stats.riskLevel === "Low Risk" ? "#eab308" : stats.riskLevel === "OK" ? "#22c55e" : stats.riskLevel === "Better" ? "#3b82f6" : "#a855f7";
+  const riskBg = isDanger ? "rgba(239,68,68,0.08)" : stats.riskLevel === "Low Risk" ? "rgba(234,179,8,0.08)" : "rgba(34,197,94,0.08)";
+  const riskBorder = isDanger ? "rgba(239,68,68,0.25)" : stats.riskLevel === "Low Risk" ? "rgba(234,179,8,0.25)" : "rgba(34,197,94,0.25)";
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin:0;padding:0;background:#06060e;font-family:'Segoe UI',Arial,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#06060e;padding:40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:linear-gradient(145deg,#12122a,#0c0c1a);border:1px solid rgba(139,92,246,0.2);border-radius:24px;overflow:hidden;">
+          
+          <!-- Header -->
+          <tr>
+            <td style="padding:40px 32px 20px;text-align:center;border-bottom:1px solid rgba(255,255,255,0.05);">
+              <div style="font-size:36px;margin-bottom:12px;">🤖</div>
+              <h1 style="margin:0;font-size:24px;font-weight:800;color:#eae8ff;">
+                Daily Savage Assessment
+              </h1>
+              <p style="margin:8px 0 0;font-size:14px;color:rgba(255,255,255,0.5);">
+                Current Streak: <strong style="color:#c4b5fd;">${stats.currentDays.toFixed(1)} Days</strong>
+              </p>
+            </td>
+          </tr>
+
+          <!-- Scores Panel -->
+          <tr>
+            <td style="padding:24px 32px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="margin-bottom:24px;">
+                <tr>
+                  <!-- Risk -->
+                  <td width="33%" style="padding:16px 8px;text-align:center;background:${riskBg};border:1px solid ${riskBorder};border-radius:12px;">
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Risk</div>
+                    <div style="font-size:20px;margin-bottom:2px;">${stats.riskIcon}</div>
+                    <div style="font-size:12px;font-weight:700;color:${riskColor};">${stats.riskLevel}</div>
+                  </td>
+                  <td width="2%"></td>
+                  <!-- Productivity -->
+                  <td width="31%" style="padding:16px 8px;text-align:center;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px;">
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Prod%</div>
+                    <div style="font-size:24px;font-weight:800;color:${prodColor};">${stats.productivityScore.toFixed(0)}<span style="font-size:12px;">%</span></div>
+                  </td>
+                  <td width="2%"></td>
+                  <!-- Confidence -->
+                  <td width="31%" style="padding:16px 8px;text-align:center;background:rgba(255,255,255,0.02);border:1px solid rgba(255,255,255,0.05);border-radius:12px;">
+                    <div style="font-size:10px;color:rgba(255,255,255,0.4);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;">Conf%</div>
+                    <div style="font-size:24px;font-weight:800;color:${confColor};">${stats.confidenceScore.toFixed(0)}<span style="font-size:12px;">%</span></div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- AI Response -->
+          <tr>
+            <td style="padding:0 32px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:rgba(139,92,246,0.05);border:1px solid rgba(139,92,246,0.15);border-radius:16px;">
+                <tr>
+                  <td style="padding:24px;font-size:15px;line-height:1.7;color:#e2e8f0;">
+                    ${aiResponseHtml}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="padding:20px 32px;background:rgba(255,255,255,0.02);border-top:1px solid rgba(255,255,255,0.05);text-align:center;">
+              <p style="margin:0;font-size:12px;color:rgba(255,255,255,0.3);">
+                Addiction Tracker • The Truth Always Wins.
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `.trim();
+}
