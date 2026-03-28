@@ -76,7 +76,7 @@ export async function GET(request: Request) {
       try {
         if (process.env.GEMINI_API_KEY) {
           const model = genAI.getGenerativeModel({
-            model: 'gemini-3.0-flash',
+            model: 'gemini-2.5-flash',
             systemInstruction: `You are a savage, ruthless accountability partner for an addiction recovery tracker.
 You are writing a daily report email to the user. You have ZERO mercy. Analyze their stats and give them a short, brutal reality check.
 Stats: Streak: ${stats.currentDays.toFixed(1)}d, Best: ${stats.bestDays.toFixed(1)}d, Risk: ${stats.riskLevel}, Prod: ${stats.productivityScore.toFixed(0)}%, Conf: ${stats.confidenceScore.toFixed(0)}%, Relapses Today: ${stats.relapsesToday}.
