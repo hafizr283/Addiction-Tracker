@@ -7,6 +7,7 @@ import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import HistoryDashboard from "@/components/HistoryDashboard";
 import LeaderboardDashboard from "@/components/LeaderboardDashboard";
 import AiOverview from "@/components/AiOverview";
+import GeneralNotes from "@/components/GeneralNotes";
 import UserProfile from "@/components/UserProfile";
 import Login from "@/app/login/page";
 import EmergencyModal from "@/components/EmergencyModal";
@@ -69,6 +70,7 @@ export default function Home() {
           loading={relapsesLoading}
         />
       )}
+      {activePage === "notes" && <GeneralNotes />}
       {activePage === "ai" && (
         <AiOverview 
           relapses={relapses}
