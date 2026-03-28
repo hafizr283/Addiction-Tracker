@@ -3,7 +3,7 @@
 import { Dispatch, SetStateAction } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 
-export type PageView = "streak" | "stats" | "history" | "leaderboard" | "profile";
+export type PageView = "streak" | "stats" | "history" | "ai" | "leaderboard" | "profile";
 
 interface NavigationProps {
   activePage: PageView;
@@ -32,6 +32,13 @@ export default function Navigation({ activePage, setActivePage }: NavigationProp
         onClick={() => setActivePage("history")}
       >
         📋 History
+      </button>
+
+      <button
+        className={`nav-btn ${activePage === "ai" ? "active" : ""}`}
+        onClick={() => setActivePage("ai")}
+      >
+        🧠 AI
       </button>
 
       <button

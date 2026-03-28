@@ -6,6 +6,7 @@ import StreakDashboard from "@/components/StreakDashboard";
 import AnalyticsDashboard from "@/components/AnalyticsDashboard";
 import HistoryDashboard from "@/components/HistoryDashboard";
 import LeaderboardDashboard from "@/components/LeaderboardDashboard";
+import AiOverview from "@/components/AiOverview";
 import UserProfile from "@/components/UserProfile";
 import Login from "@/app/login/page";
 import EmergencyModal from "@/components/EmergencyModal";
@@ -66,6 +67,14 @@ export default function Home() {
           onAdd={addRelapse} 
           onDelete={deleteRelapse} 
           loading={relapsesLoading}
+        />
+      )}
+      {activePage === "ai" && (
+        <AiOverview 
+          relapses={relapses}
+          urges={urges}
+          moods={moods}
+          userCreatedAt={user.created_at}
         />
       )}
       {activePage === "leaderboard" && <LeaderboardDashboard />}
