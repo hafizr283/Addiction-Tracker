@@ -21,8 +21,9 @@ export async function POST(request: Request) {
     if (authError) throw authError;
     const user = users.find(u => u.email === email);
     
-    let lostStreakDays = 0;
-    let bestStreakDays = 0;
+    let lostStreakTime = "0 hours";
+    let bestStreakTime = "0 hours";
+    let relapseTimeFormatted = "";
 
     if (user) {
       // 2. Fetch user's relapses
@@ -33,35 +34,46 @@ export async function POST(request: Request) {
         .order('date', { ascending: false });
 
       if (!relapsesError && relapses && relapses.length > 0) {
-        // Because the new relapse was just inserted, relapses[0] is the current relapse
-        // the lost streak is the difference between relapses[0] and relapses[1] (if exists)
-        if (relapses.length > 1) {
-          const r0 = new Date(relapses[0].date).getTime();
-          const r1 = new Date(relapses[1].date).getTime();
-          lostStreakDays = Math.max(0, Math.floor((r0 - r1) / (1000 * 60 * 60 * 24)));
+        const currentRelapseDate = new Date(relapses[0].date);
+        relapseTimeFormatted = currentRelapseDate.toLocaleString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric',
+            hour: 'numeric', minute: '2-digit', hour12: true
+        });
+
+        const lastDateStr = relapses.length > 1 ? relapses[1].date : user.created_at;
+        const diffMs = currentRelapseDate.getTime() - new Date(lastDateStr).getTime();
+        const diffHours = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60)));
+        const diffDays = Math.floor(diffHours / 24);
+        const remainingHours = diffHours % 24;
+        
+        if (diffDays > 0) {
+          lostStreakTime = `${diffDays} days, ${remainingHours} hours`;
         } else {
-          // Compare with account creation
-          const r0 = new Date(relapses[0].date).getTime();
-          const created = new Date(user.created_at).getTime();
-          lostStreakDays = Math.max(0, Math.floor((r0 - created) / (1000 * 60 * 60 * 24)));
+          lostStreakTime = `${diffHours} hours`;
         }
 
         // Calculate best streak
-        let currentBest = 0;
+        let bestMs = 0;
         for (let i = 0; i < relapses.length - 1; i++) {
-          const diff = new Date(relapses[i].date).getTime() - new Date(relapses[i+1].date).getTime();
-          const d = Math.floor(diff / (1000 * 60 * 60 * 24));
-          if (d > currentBest) currentBest = d;
+          const ms = new Date(relapses[i].date).getTime() - new Date(relapses[i+1].date).getTime();
+          if (ms > bestMs) bestMs = ms;
         }
-        const createdDiff = new Date(relapses[relapses.length - 1].date).getTime() - new Date(user.created_at).getTime();
-        const createdDays = Math.floor(createdDiff / (1000 * 60 * 60 * 24));
-        if (createdDays > currentBest) currentBest = createdDays;
+        const createdMs = new Date(relapses[relapses.length - 1].date).getTime() - new Date(user.created_at).getTime();
+        if (createdMs > bestMs) bestMs = createdMs;
 
-        bestStreakDays = currentBest;
+        const bestHoursTotal = Math.max(0, Math.floor(bestMs / (1000 * 60 * 60)));
+        const bestDays = Math.floor(bestHoursTotal / 24);
+        const bestRemainingHours = bestHoursTotal % 24;
+        
+        if (bestDays > 0) {
+          bestStreakTime = `${bestDays} days, ${bestRemainingHours} hours`;
+        } else {
+          bestStreakTime = `${bestHoursTotal} hours`;
+        }
       }
     }
 
-    const html = getRelapseMotivationEmail(type, lostStreakDays, bestStreakDays);
+    const html = getRelapseMotivationEmail(type, lostStreakTime, bestStreakTime, relapseTimeFormatted);
 
     const { error: emailError } = await resend.emails.send({
       from: 'Addiction Tracker <onboarding@resend.dev>',

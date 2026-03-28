@@ -101,20 +101,37 @@ export function getBadgeNotificationEmail(
   `.trim();
 }
 
-export function getRelapseMotivationEmail(type: string, lostStreakDays: number = 0, bestStreakDays: number = 0): string {
+export function getRelapseMotivationEmail(
+  type: string, 
+  lostStreakTime: string = "0 hours", 
+  bestStreakTime: string = "0 hours",
+  relapseTimeFormatted: string = ""
+): string {
   let headerTitle = "Don't Give Up Now.";
   let colorTheme = "239,68,68"; // red
   let mainMessage = "";
   
   const statsHtml = `
-    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:24px;display:table;width:100%;">
-      <div style="display:table-cell;width:50%;text-align:center;border-right:1px solid rgba(255,255,255,0.05);">
-        <div style="font-size:24px;font-weight:700;color:rgba(${colorTheme}, 1);margin-bottom:4px;">${lostStreakDays}</div>
-        <div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Streak Lost</div>
+    <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.05);border-radius:12px;padding:16px;margin-bottom:24px;">
+      <div style="display:table;width:100%;margin-bottom:12px;">
+        <div style="display:table-cell;width:50%;text-align:center;border-right:1px solid rgba(255,255,255,0.05);padding:8px;">
+          <div style="font-size:18px;font-weight:700;color:rgba(${colorTheme}, 1);margin-bottom:4px;">${lostStreakTime}</div>
+          <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Relapsed After</div>
+        </div>
+        <div style="display:table-cell;width:50%;text-align:center;padding:8px;">
+          <div style="font-size:18px;font-weight:700;color:#fcd34d;margin-bottom:4px;">${bestStreakTime}</div>
+          <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Best Time</div>
+        </div>
       </div>
-      <div style="display:table-cell;width:50%;text-align:center;">
-        <div style="font-size:24px;font-weight:700;color:#fcd34d;margin-bottom:4px;">${bestStreakDays}</div>
-        <div style="font-size:12px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">All-Time Best</div>
+      <div style="border-top:1px solid rgba(255,255,255,0.05);padding-top:12px;display:table;width:100%;">
+        <div style="display:table-cell;width:50%;text-align:center;border-right:1px solid rgba(255,255,255,0.05);padding:8px;">
+          <div style="font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:4px;">${type}</div>
+          <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Relapse Type</div>
+        </div>
+        <div style="display:table-cell;width:50%;text-align:center;padding:8px;">
+          <div style="font-size:14px;font-weight:600;color:#e2e8f0;margin-bottom:4px;">${relapseTimeFormatted || "Just now"}</div>
+          <div style="font-size:11px;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">Relapse Time</div>
+        </div>
       </div>
     </div>
   `;
