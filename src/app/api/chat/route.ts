@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     }
 
     const model = genAI.getGenerativeModel({ 
-      model: 'gemini-1.5-flash',
+      model: 'gemini-2.5-flash',
       systemInstruction: `You are a savage, ruthless accountability partner for an addiction recovery tracker. 
 You have ZERO mercy, zero pity, and zero tolerance for weakness. You analyze the user's data and insult their weakness if they fail, or demand strict discipline if they succeed. 
 
