@@ -176,7 +176,7 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
           {chatMessages.length === 0 && (
             <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--text-muted)", fontSize: "13px" }}>
               <div style={{ fontSize: "28px", marginBottom: "8px" }}>🤖</div>
-              Powered by <strong>Gemini 1.5 Flash</strong>.<br/>I know everything about your streak.<br/>Ask me anything and prepare for the truth.
+              Powered by <strong>Gemini 3.0 Flash</strong>.<br/>I know everything about your streak.<br/>Ask me anything and prepare for the truth.
             </div>
           )}
           {chatMessages.map((msg, i) => (
