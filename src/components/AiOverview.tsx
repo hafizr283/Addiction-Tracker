@@ -66,149 +66,74 @@ function analyzeData(relapses: Relapse[], urges: Urge[], moods: Mood[], userCrea
     else break;
   }
 
-  // === RISK LEVEL ===
-  let riskLevel: "OK" | "RISK" | "HIGH RISK" = "OK";
-  let riskReason = "";
-
-  if (currentStreakMs > previousStreakMs && previousStreakMs > 0) {
-    riskLevel = "OK";
-    riskReason = "Your current streak is longer than the last gap. You are improving. Keep going.";
-  } else if (consecutiveShortRelapses >= 3) {
-    riskLevel = "HIGH RISK";
-    riskReason = `You have had ${consecutiveShortRelapses} consecutive short relapses (under 2 days each). This is a binge pattern. You need to go on a complete digital fast — no phone, no laptop, nothing. Just survive the next 48 hours.`;
-  } else if (previousStreakMs > 0 && currentStreakMs < previousStreakMs) {
-    riskLevel = "RISK";
-    riskReason = "Your current streak has not exceeded your previous gap yet. Stay vigilant. The danger zone is not over.";
-  } else if (recentCount >= 3) {
-    riskLevel = "HIGH RISK";
-    riskReason = `${recentCount} relapses in the last 7 days. This is a dangerous frequency. Consider putting all devices away and going offline for 24-48 hours.`;
-  } else if (recentCount >= 1) {
-    riskLevel = "RISK";
-    riskReason = `${recentCount} relapse(s) in the last 7 days. You're in the recovery window — the Chaser Effect is real. Stay away from triggers.`;
+  // === RISK LEVEL (Strict Days Based) ===
+  const currentDays = currentStreakMs / 86400000;
+  
+  let riskLevel = "";
+  let riskIcon = "";
+  let nextTargetDays = 0;
+  let nextTargetRisk = "";
+  
+  if (currentDays < 1) {
+    riskLevel = "High Risk"; riskIcon = "🔴"; nextTargetDays = 1; nextTargetRisk = "Risk";
+  } else if (currentDays < 3) {
+    riskLevel = "Risk"; riskIcon = "🟠"; nextTargetDays = 3; nextTargetRisk = "Low Risk";
+  } else if (currentDays < 7) {
+    riskLevel = "Low Risk"; riskIcon = "🟡"; nextTargetDays = 7; nextTargetRisk = "OK";
+  } else if (currentDays < 30) {
+    riskLevel = "OK"; riskIcon = "🟢"; nextTargetDays = 30; nextTargetRisk = "Better";
+  } else if (currentDays < 60) {
+    riskLevel = "Better"; riskIcon = "🔵"; nextTargetDays = 60; nextTargetRisk = "Very Good";
+  } else if (currentDays < 90) {
+    riskLevel = "Very Good"; riskIcon = "💜"; nextTargetDays = 90; nextTargetRisk = "100% OK";
+  } else {
+    riskLevel = "100% OK"; riskIcon = "✅"; nextTargetDays = 90; nextTargetRisk = "100% OK";
   }
 
-  // === PRODUCTIVITY SCORE (0-100) ===
-  // Based on: current streak length, trend improvement, type severity
-  let productivityScore = 50; // baseline
+  // === PRODUCTIVITY SCORE & CONFIDENCE SCORE ===
+  const productivityScore = Math.min(100, (currentDays / 90) * 100);
+  const confidenceScore = Math.min(100, (currentDays / 10) * 100);
 
-  // Current streak contribution (up to +30)
-  const currentDays = currentStreakMs / 86400000;
-  if (currentDays >= 30) productivityScore += 30;
-  else if (currentDays >= 14) productivityScore += 25;
-  else if (currentDays >= 7) productivityScore += 20;
-  else if (currentDays >= 3) productivityScore += 12;
-  else if (currentDays >= 1) productivityScore += 5;
-  else productivityScore -= 10;
-
-  // Trend improvement contribution (+/- 15)
-  if (recentCount < prevWeekCount) productivityScore += 15;
-  else if (recentCount === 0 && prevWeekCount === 0) productivityScore += 10;
-  else if (recentCount > prevWeekCount) productivityScore -= 15;
-
-  // Monthly frequency penalty
-  if (monthCount >= 10) productivityScore -= 15;
-  else if (monthCount >= 5) productivityScore -= 8;
-  else if (monthCount <= 1) productivityScore += 5;
-
-  productivityScore = Math.max(0, Math.min(100, productivityScore));
-
-  // === CONFIDENCE SCORE (0-100) ===
-  // Based on: best streak achieved, consistency, improvement over time
-  let confidenceScore = 40;
-
-  // Best streak contribution
-  const bestDays = bestStreakMs / 86400000;
-  if (bestDays >= 90) confidenceScore += 30;
-  else if (bestDays >= 30) confidenceScore += 25;
-  else if (bestDays >= 14) confidenceScore += 18;
-  else if (bestDays >= 7) confidenceScore += 12;
-  else if (bestDays >= 3) confidenceScore += 5;
-
-  // Current vs best ratio
-  const ratio = bestStreakMs > 0 ? currentStreakMs / bestStreakMs : 0;
-  if (ratio >= 0.8) confidenceScore += 15;
-  else if (ratio >= 0.5) confidenceScore += 8;
-  else if (ratio < 0.2) confidenceScore -= 5;
-
-  // Trend
-  if (recentCount < prevWeekCount) confidenceScore += 10;
-  else if (recentCount > prevWeekCount + 1) confidenceScore -= 10;
-
-  confidenceScore = Math.max(0, Math.min(100, confidenceScore));
-
-  // === TYPE BREAKDOWN ===
+  // === TYPE AND TIME BREAKDOWN ===
   const typeMap: Record<string, number> = {};
   relapses.forEach(r => { typeMap[r.type] = (typeMap[r.type] || 0) + 1; });
   const dominantType = Object.entries(typeMap).sort((a, b) => b[1] - a[1])[0]?.[0] || "N/A";
 
-  // === Most dangerous time ===
   const hourBuckets = new Array(24).fill(0);
   relapses.forEach(r => hourBuckets[new Date(r.date).getHours()]++);
   const dangerousHour = hourBuckets.indexOf(Math.max(...hourBuckets));
   const dangerousTimeLabel = dangerousHour >= 0 ? `${dangerousHour}:00 - ${(dangerousHour + 1) % 24}:00` : "N/A";
 
+  // Today relapses count
+  const startOfToday = new Date();
+  startOfToday.setHours(0,0,0,0);
+  const relapsesToday = relapses.filter(r => new Date(r.date).getTime() >= startOfToday.getTime()).length;
+  
+  // Find worst day count
+  const dayBuckets: Record<string, number> = {};
+  relapses.forEach(r => {
+    const dStr = new Date(r.date).toDateString();
+    dayBuckets[dStr] = (dayBuckets[dStr] || 0) + 1;
+  });
+  const maxRelapsesInOneDay = Math.max(0, ...Object.values(dayBuckets));
+
   return {
-    currentStreakMs,
-    bestStreakMs,
-    avgStreakMs,
-    previousStreakMs,
-    riskLevel,
-    riskReason,
-    productivityScore,
-    confidenceScore,
-    recentCount,
-    prevWeekCount,
-    monthCount,
-    consecutiveShortRelapses,
-    dominantType,
-    dangerousTimeLabel,
-    totalRelapses: relapses.length,
-    currentDays,
-    bestDays,
+    currentStreakMs, bestStreakMs, avgStreakMs, previousStreakMs,
+    riskLevel, riskIcon, nextTargetDays, nextTargetRisk,
+    productivityScore, confidenceScore,
+    recentCount, prevWeekCount, monthCount, consecutiveShortRelapses,
+    dominantType, dangerousTimeLabel,
+    totalRelapses: relapses.length, currentDays, bestDays: bestStreakMs / 86400000,
+    relapsesToday, maxRelapsesInOneDay
   };
 }
 
-// ===== AI CHAT RESPONSE ENGINE =====
-function getAiResponse(
-  query: string,
-  analysis: ReturnType<typeof analyzeData>,
-  relapses: Relapse[]
-): string {
-  const q = query.toLowerCase();
-
-  if (q.includes("suggestion") || q.includes("tip") || q.includes("help") || q.includes("advice") || q.includes("ki korbo") || q.includes("what should")) {
-    if (analysis.riskLevel === "HIGH RISK") {
-      return `🚨 You are in HIGH RISK right now. Here is my suggestion:\n\n1. Put your phone and laptop in another room immediately.\n2. Go outside — walk, run, do pushups, anything physical.\n3. Do not negotiate with the urge. The Chaser Effect is active.\n4. Your next 48 hours are critical. Survive them and the urges will drop dramatically.\n\nYour brain is lying to you right now. The dopamine spike is NOT worth losing another ${fmtDuration(analysis.previousStreakMs)} streak.`;
-    } else if (analysis.riskLevel === "RISK") {
-      return `⚠️ You're in the RISK zone. Stay alert.\n\n1. Keep screens to a minimum today, especially after ${analysis.dangerousTimeLabel} (your most dangerous time).\n2. Your current streak is ${fmtDuration(analysis.currentStreakMs)} — don't throw it away.\n3. Channel your energy into something productive: exercise, study, social interaction.\n4. Remember: your best streak is ${fmtDuration(analysis.bestStreakMs)}. You can beat it.`;
-    } else {
-      return `✅ You're doing well! Your current streak is ${fmtDuration(analysis.currentStreakMs)} and you're in the OK zone.\n\n1. Keep building momentum. Every hour counts.\n2. Stay disciplined during ${analysis.dangerousTimeLabel} — that's historically your weakest time.\n3. Your productivity score is ${analysis.productivityScore}/100. Keep pushing it higher.\n4. You've survived ${analysis.totalRelapses} relapses and you're still here. That's strength.`;
-    }
-  }
-
-  if (q.includes("risk") || q.includes("danger") || q.includes("status") || q.includes("obostha") || q.includes("condition")) {
-    return `📊 Current Status:\n\n• Risk Level: ${analysis.riskLevel === "HIGH RISK" ? "🔴" : analysis.riskLevel === "RISK" ? "🟡" : "🟢"} ${analysis.riskLevel}\n• Reason: ${analysis.riskReason}\n• Current Streak: ${fmtDuration(analysis.currentStreakMs)}\n• Previous Gap: ${fmtDuration(analysis.previousStreakMs)}\n• This Week: ${analysis.recentCount} relapse(s)\n• Last Week: ${analysis.prevWeekCount} relapse(s)\n\n${analysis.riskLevel !== "OK" ? "⚠️ You need to be more careful. Avoid all triggers." : "✅ Keep it up. You're on the right track."}`;
-  }
-
-  if (q.includes("score") || q.includes("productivity") || q.includes("confidence")) {
-    return `📈 Your Scores:\n\n• Productivity: ${analysis.productivityScore}/100 ${analysis.productivityScore >= 70 ? "🟢" : analysis.productivityScore >= 40 ? "🟡" : "🔴"}\n• Confidence: ${analysis.confidenceScore}/100 ${analysis.confidenceScore >= 70 ? "🟢" : analysis.confidenceScore >= 40 ? "🟡" : "🔴"}\n\nProductivity is based on your current streak, weekly trend, and monthly frequency.\nConfidence is based on your best streak, consistency, and improvement over time.\n\n${analysis.productivityScore < 50 ? "Your productivity is low. Focus on surviving each day without relapse." : "Your productivity is decent. Keep the momentum going."}`;
-  }
-
-  if (q.includes("streak") || q.includes("best") || q.includes("record")) {
-    return `🏆 Streak Info:\n\n• Current: ${fmtDuration(analysis.currentStreakMs)}\n• Best Ever: ${fmtDuration(analysis.bestStreakMs)}\n• Average Gap: ${fmtDuration(analysis.avgStreakMs)}\n• Previous Gap: ${fmtDuration(analysis.previousStreakMs)}\n\n${analysis.currentStreakMs >= analysis.bestStreakMs ? "🎉 You are currently at your ALL-TIME BEST! Don't break it!" : `You need ${fmtDuration(analysis.bestStreakMs - analysis.currentStreakMs)} more to beat your record.`}`;
-  }
-
-  if (q.includes("pattern") || q.includes("trigger") || q.includes("type") || q.includes("when") || q.includes("time")) {
-    return `🔍 Pattern Analysis:\n\n• Most Common Type: ${analysis.dominantType}\n• Most Dangerous Time: ${analysis.dangerousTimeLabel}\n• This Month: ${analysis.monthCount} relapses\n• Consecutive Short Relapses: ${analysis.consecutiveShortRelapses}\n\n${analysis.consecutiveShortRelapses >= 2 ? "⚠️ You have a binge pattern forming. Break the cycle NOW." : "Your patterns show specific time-based triggers. Be extra careful during your danger hours."}`;
-  }
-
-  // Default response
-  return `🤖 I can help you with:\n\n• "suggestion" — Get personalized advice based on your current state\n• "risk" or "status" — Check your current risk level\n• "score" — See your productivity & confidence scores\n• "streak" — Compare your streaks\n• "pattern" — Analyze your relapse patterns\n\nJust type any of these keywords and I'll analyze your data!`;
-}
+// (Removed static getAiResponse to rely entirely on Gemini via API)
 
 export default function AiOverview({ relapses, urges, moods, userCreatedAt }: AiOverviewProps) {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
+  const [isAiLoading, setIsAiLoading] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   const analysis = analyzeData(relapses, urges, moods, userCreatedAt);
@@ -217,34 +142,63 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages]);
 
-  const handleChat = () => {
+  const handleChat = async () => {
     const q = chatInput.trim();
-    if (!q) return;
+    if (!q || isAiLoading) return;
 
     const userMsg: ChatMessage = { role: "user", text: q };
-    const aiResponse = getAiResponse(q, analysis, relapses);
-    const aiMsg: ChatMessage = { role: "ai", text: aiResponse };
-
-    setChatMessages(prev => [...prev, userMsg, aiMsg]);
+    setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
+    setIsAiLoading(true);
+
+    try {
+      const resp = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: q,
+          stats: analysis,
+          chatHistory: chatMessages
+        })
+      });
+      const data = await resp.json();
+      if (data.error) throw new Error(data.error);
+
+      setChatMessages(prev => [...prev, { role: "ai", text: data.response }]);
+    } catch (err: any) {
+      setChatMessages(prev => [...prev, { role: "ai", text: `⚠️ Error connecting to Gemini: ${err.message}` }]);
+    } finally {
+      setIsAiLoading(false);
+    }
   };
 
-  const riskColor = analysis.riskLevel === "HIGH RISK" ? "#ef4444" : analysis.riskLevel === "RISK" ? "#fbbf24" : "#22c55e";
-  const riskBg = analysis.riskLevel === "HIGH RISK" ? "rgba(239,68,68,0.08)" : analysis.riskLevel === "RISK" ? "rgba(251,191,36,0.08)" : "rgba(34,197,94,0.08)";
-  const riskBorder = analysis.riskLevel === "HIGH RISK" ? "rgba(239,68,68,0.25)" : analysis.riskLevel === "RISK" ? "rgba(251,191,36,0.25)" : "rgba(34,197,94,0.25)";
-  const riskIcon = analysis.riskLevel === "HIGH RISK" ? "🔴" : analysis.riskLevel === "RISK" ? "🟡" : "🟢";
+  // Derive styling colors based on strict risks
+  const isDanger = analysis.riskLevel === "High Risk" || analysis.riskLevel === "Risk";
+  const riskColor = isDanger ? "#ef4444" : analysis.riskLevel === "Low Risk" ? "#eab308" : analysis.riskLevel === "OK" ? "#22c55e" : analysis.riskLevel === "Better" ? "#3b82f6" : "#a855f7";
+  const riskBg = isDanger ? "rgba(239,68,68,0.08)" : analysis.riskLevel === "Low Risk" ? "rgba(234,179,8,0.08)" : "rgba(34,197,94,0.08)";
+  const riskBorder = isDanger ? "rgba(239,68,68,0.25)" : analysis.riskLevel === "Low Risk" ? "rgba(234,179,8,0.25)" : "rgba(34,197,94,0.25)";
 
-  const prodColor = analysis.productivityScore >= 70 ? "#22c55e" : analysis.productivityScore >= 40 ? "#fbbf24" : "#ef4444";
-  const confColor = analysis.confidenceScore >= 70 ? "#22c55e" : analysis.confidenceScore >= 40 ? "#fbbf24" : "#ef4444";
+  const prodColor = analysis.productivityScore >= 70 ? "#22c55e" : analysis.productivityScore >= 30 ? "#eab308" : "#ef4444";
+  const confColor = analysis.confidenceScore >= 100 ? "#22c55e" : analysis.confidenceScore >= 50 ? "#eab308" : "#ef4444";
 
-  // Auto overview message
+  // Savage dynamic overview message
   let overviewMessage = "";
-  if (analysis.riskLevel === "HIGH RISK") {
-    overviewMessage = `🚨 CRITICAL: Your situation is dangerous. ${analysis.riskReason} Your productivity is at ${analysis.productivityScore}/100. You MUST take immediate action — go completely offline and remove all devices from your environment.`;
-  } else if (analysis.riskLevel === "RISK") {
-    overviewMessage = `⚠️ CAUTION: ${analysis.riskReason} Your productivity score is ${analysis.productivityScore}/100 and confidence is ${analysis.confidenceScore}/100. Stay disciplined and avoid your trigger times around ${analysis.dangerousTimeLabel}.`;
+  if (analysis.relapsesToday > 0) {
+    const isWorst = analysis.relapsesToday >= analysis.maxRelapsesInOneDay;
+    overviewMessage = `${analysis.riskIcon} ${analysis.riskLevel} | Productivity: ${analysis.productivityScore.toFixed(1)}% | Confidence: ${analysis.confidenceScore.toFixed(1)}% — You failed ${analysis.relapsesToday} time(s) today. ${isWorst ? "This is your WORST DAY in the data." : ""} Shut down your phone and laptop RIGHT NOW. You have zero discipline left. Survive the next hour without crying about it.`;
+  } else if (analysis.currentDays < 10) {
+    const pTarget = ((analysis.nextTargetDays / 90) * 100).toFixed(1);
+    const cTarget = (Math.min(100, (analysis.nextTargetDays / 10) * 100)).toFixed(1);
+    overviewMessage = `If you manage to survive ${analysis.nextTargetDays} days, your Productivity will rise to ${pTarget}%, and Confidence to ${cTarget}%. That is your ONLY target right now. Hit ${analysis.nextTargetDays} days to get to "${analysis.nextTargetRisk}". You currently sit at Productivity ${analysis.productivityScore.toFixed(1)}%. Stop being weak.`;
+  } else if (analysis.currentDays < analysis.bestDays) {
+    const daysToRecord = Math.ceil(analysis.bestDays - analysis.currentDays);
+    const pAtRecord = ((analysis.bestDays / 90) * 100).toFixed(1);
+    overviewMessage = `Your absolute best was ${analysis.bestDays.toFixed(1)} days. You threw it away. You need exactly ${daysToRecord} more days to beat it, which will push your Productivity to ${pAtRecord}%. Until then, you are just recovering lost ground. Stop celebrating mediocrity and hit your record.`;
+  } else if (analysis.currentDays < 90) {
+    const daysTo90 = Math.ceil(90 - analysis.currentDays);
+    overviewMessage = `You passed your old records. Good. But the job isn't done. You have ${daysTo90} days left to reach the 90-day 100% OK milestone. At 90 days, your Productivity will be 100%. Don't ruin it now by thinking you are "cured". Keep pushing.`;
   } else {
-    overviewMessage = `✅ GOOD: You're in a stable state. Current streak: ${fmtDuration(analysis.currentStreakMs)}. Productivity: ${analysis.productivityScore}/100, Confidence: ${analysis.confidenceScore}/100. Keep building momentum. Your best streak is ${fmtDuration(analysis.bestStreakMs)} — ${analysis.currentStreakMs >= analysis.bestStreakMs ? "you're at your best right now!" : "keep pushing to beat it."}`;
+    overviewMessage = `✅ You hit 90+ days. 100% Productivity. 100% Confidence. You conquered your worst self. Keep the standard here. Do not look back at the filth you left behind.`;
   }
 
   return (
@@ -256,21 +210,19 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
         {/* Productivity */}
         <div className="stat-card" style={{ textAlign: "center", padding: "20px 12px", border: `1px solid ${prodColor}30`, background: `${prodColor}08` }}>
           <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>Productivity</div>
-          <div style={{ fontSize: "36px", fontWeight: 800, color: prodColor, lineHeight: 1 }}>{analysis.productivityScore}</div>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>/100</div>
+          <div style={{ fontSize: "36px", fontWeight: 800, color: prodColor, lineHeight: 1 }}>{analysis.productivityScore.toFixed(1)}<span style={{ fontSize: "16px" }}>%</span></div>
         </div>
 
         {/* Confidence */}
         <div className="stat-card" style={{ textAlign: "center", padding: "20px 12px", border: `1px solid ${confColor}30`, background: `${confColor}08` }}>
           <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>Confidence</div>
-          <div style={{ fontSize: "36px", fontWeight: 800, color: confColor, lineHeight: 1 }}>{analysis.confidenceScore}</div>
-          <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "4px" }}>/100</div>
+          <div style={{ fontSize: "36px", fontWeight: 800, color: confColor, lineHeight: 1 }}>{analysis.confidenceScore.toFixed(0)}<span style={{ fontSize: "16px" }}>%</span></div>
         </div>
 
         {/* Risk Level */}
         <div className="stat-card" style={{ textAlign: "center", padding: "20px 12px", border: `1px solid ${riskBorder}`, background: riskBg }}>
           <div style={{ fontSize: "12px", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "1px", marginBottom: "8px" }}>Risk Level</div>
-          <div style={{ fontSize: "28px", marginBottom: "2px" }}>{riskIcon}</div>
+          <div style={{ fontSize: "28px", marginBottom: "2px" }}>{analysis.riskIcon}</div>
           <div style={{ fontSize: "14px", fontWeight: 700, color: riskColor }}>{analysis.riskLevel}</div>
         </div>
       </div>
@@ -311,21 +263,8 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
         </div>
       </div>
 
-      {/* === Risk Reason Detail === */}
-      {analysis.riskReason && (
-        <div style={{
-          padding: "16px",
-          borderRadius: "12px",
-          background: "rgba(255,255,255,0.02)",
-          border: "1px solid rgba(255,255,255,0.06)",
-          marginBottom: "24px",
-        }}>
-          <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", marginBottom: "6px" }}>📋 Risk Analysis</div>
-          <p style={{ margin: 0, fontSize: "13px", lineHeight: 1.6, color: "var(--text-secondary, #94a3b8)" }}>
-            {analysis.riskReason}
-          </p>
-        </div>
-      )}
+      {/* === Risk Reason Detail (removed as we use auto-assessment only now) === */}
+      <div style={{ padding: "0" }}></div>
 
       {/* === Chat Section === */}
       <div className="section-title">💬 Ask AI</div>
@@ -347,7 +286,7 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
           {chatMessages.length === 0 && (
             <div style={{ textAlign: "center", padding: "24px 16px", color: "var(--text-muted)", fontSize: "13px" }}>
               <div style={{ fontSize: "28px", marginBottom: "8px" }}>🤖</div>
-              Ask me about your <strong>risk</strong>, <strong>scores</strong>, <strong>suggestions</strong>, <strong>streaks</strong>, or <strong>patterns</strong>.
+              Powered by <strong>Gemini 1.5 Flash</strong>.<br/>I know everything about your streak.<br/>Ask me anything and prepare for the truth.
             </div>
           )}
           {chatMessages.map((msg, i) => (
@@ -366,6 +305,11 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
               {msg.text}
             </div>
           ))}
+          {isAiLoading && (
+            <div style={{ alignSelf: "flex-start", opacity: 0.5, fontSize: "13px", color: "#e2e8f0" }}>
+              AI is typing...
+            </div>
+          )}
           <div ref={chatEndRef} />
         </div>
 
@@ -382,7 +326,8 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
             value={chatInput}
             onChange={(e) => setChatInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleChat()}
-            placeholder="Ask about risk, scores, suggestions..."
+            placeholder={isAiLoading ? "AI is typing..." : "Talk to Savage AI..."}
+            disabled={isAiLoading}
             style={{
               flex: 1,
               padding: "10px 14px",
@@ -392,22 +337,24 @@ export default function AiOverview({ relapses, urges, moods, userCreatedAt }: Ai
               color: "#e2e8f0",
               fontSize: "13px",
               outline: "none",
+              opacity: isAiLoading ? 0.6 : 1,
             }}
           />
           <button
             onClick={handleChat}
+            disabled={isAiLoading}
             style={{
               padding: "10px 18px",
               borderRadius: "12px",
               border: "none",
-              background: "linear-gradient(135deg, #8b5cf6, #6d28d9)",
-              color: "#fff",
+              background: isAiLoading ? "rgba(255,255,255,0.1)" : "linear-gradient(135deg, #8b5cf6, #6d28d9)",
+              color: isAiLoading ? "rgba(255,255,255,0.3)" : "#fff",
               fontSize: "13px",
               fontWeight: 600,
-              cursor: "pointer",
+              cursor: isAiLoading ? "not-allowed" : "pointer",
             }}
           >
-            Send
+            {isAiLoading ? "..." : "Send"}
           </button>
         </div>
       </div>
